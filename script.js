@@ -66,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       localStorage.setItem("plantistAccounts", JSON.stringify(accounts));
       localStorage.setItem("plantistCurrentUser", username);
-      message.textContent = "thank you for joining;";
+      message.textContent = "thank you for joining!";
     }
 
     form.reset();
