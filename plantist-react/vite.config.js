@@ -1,0 +1,6 @@
+node_modules/
+dist/
+server/data/accounts.json
+server/uploads/*
+!server/uploads/.gitkeep
+.env*/
