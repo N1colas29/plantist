@@ -161,7 +161,7 @@ function Login({ setAccount }) {
             <div className="login-card">
                 <p className="eyebrow">plantist</p>
                 <h1>
-                    {mode === "signup" ? "join the garden" : "welcome back"}
+                    {mode === "signup" ? "join us" : "welcome back"}
                 </h1>
                 <p className="form-note">
                     {mode === "signup"
@@ -232,7 +232,7 @@ function Login({ setAccount }) {
 function RequireLogin() {
     return (
         <section className="simple-page">
-            <p className="eyebrow">private garden</p>
+            <p className="eyebrow">your garden</p>
             <h1>log in first</h1>
             <p>You need an account to view and create plant profiles.</p>
             <Link className="button-link" to="/login">
