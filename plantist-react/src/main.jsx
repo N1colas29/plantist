@@ -61,7 +61,7 @@ function Nav({ account, onLogout }) {
                         className="dropdown-button"
                         onClick={() => setOpen(!open)}
                     >
-                        Plants <span>⌄</span>
+                        Plants
                     </button>
                     {open && (
                         <div className="dropdown-menu">
@@ -101,12 +101,10 @@ function Home() {
     return (
         <>
             <section className="intro">
-                <p className="eyebrow">a quieter way to grow</p>
+                <p className="eyebrow">welcome to plantist</p>
                 <h1>what we do</h1>
                 <p className="intro-copy">
-                    plantist is a simple space for people who like plants,
-                    thoughtful spaces, and the small rituals that make a home
-                    feel alive.
+                    track your plants, learn about our community, and discover new ways to care for your green friends.
                 </p>
                 <Link className="text-link" to="/plants">
                     explore plant profiles →
@@ -165,7 +163,7 @@ function Login({ setAccount }) {
                 </h1>
                 <p className="form-note">
                     {mode === "signup"
-                        ? "Create an account, or sign in below."
+                        ? "Create an account or sign in below."
                         : "Sign in to continue to plantist."}
                 </p>
                 <form onSubmit={submit}>
