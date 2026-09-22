@@ -57,11 +57,12 @@ function Nav({ account, onLogout }) {
                 )}
                 <NavLink to="/">Home</NavLink>
                 <div className="nav-dropdown">
+                    onMouseEnter={() => setOpen(open)}
+                    onMouseLeave={() => setOpen(!open)}
                     <button
                         className="dropdown-button"
-                        onClick={() => setOpen(!open)}
                     >
-                        Plants
+                        PLANTS
                     </button>
                     {open && (
                         <div className="dropdown-menu">
@@ -139,14 +140,19 @@ function Login({ setAccount }) {
         setMsg("");
         setBusy(true);
         try {
-            const form = new FormData(e.currentTarget);
-            const d = await api(
-                mode === "signup" ? "/auth/signup" : "/auth/login",
-                { method: "POST", body: form },
-            );
+            const formElement = e.currentTarget; 
+            const form = new FormData(formElement);
+            const path = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
+            const bodyOptions = mode === "signup" 
+             ? { body: form }: { 
+                  body: JSON.stringify(Object.fromEntries(form.entries())), 
+                     headers: { "Content-Type": "application/json" } 
+                   };
+
+const d = await api(path, { method: "POST", ...bodyOptions });
             setAccount(d.account);
             setMsg(d.message);
-            e.currentTarget.reset();
+            formElement.reset();
             setTimeout(() => nav("/account"), 700);
         } catch (x) {
             setMsg(x.message);
@@ -289,7 +295,7 @@ function Plants({ account }) {
                 body: new FormData(e.currentTarget),
             });
             setPlants((x) => [...x, d.plant]);
-            e.currentTarget.reset();
+            formElement.reset();
             setShow(false);
         } catch (e) {
             setErr(e.message);
