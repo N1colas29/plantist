@@ -56,9 +56,10 @@ function Nav({ account, onLogout }) {
                     </NavLink>
                 )}
                 <NavLink to="/">Home</NavLink>
-                <div className="nav-dropdown">
-                    onMouseEnter={() => setOpen(open)}
-                    onMouseLeave={() => setOpen(!open)}
+                <div className="nav-dropdown" 
+                
+                onMouseEnter={() => setOpen(open)}
+                onMouseLeave={() => setOpen(!open)}>
                     <button
                         className="dropdown-button"
                     >
@@ -142,7 +143,7 @@ function Login({ setAccount }) {
         try {
             const formElement = e.currentTarget; 
             const form = new FormData(formElement);
-            const path = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
+            const path = mode === "signup" ? "/auth/signup" : "/auth/login";
             const bodyOptions = mode === "signup" 
              ? { body: form }: { 
                   body: JSON.stringify(Object.fromEntries(form.entries())), 
