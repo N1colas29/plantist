@@ -150,7 +150,7 @@ function Login({ setAccount }) {
                      headers: { "Content-Type": "application/json" } 
                    };
 
-const d = await api(path, { method: "POST", ...bodyOptions });
+            const d = await api(path, { method: "POST", ...bodyOptions });
             setAccount(d.account);
             setMsg(d.message);
             formElement.reset();
@@ -479,7 +479,7 @@ function Panel({ account }) {
             <p className="eyebrow">your garden</p>
             <h1>plant panel</h1>
             <p className="intro-copy small">
-                A simple place for items you want to keep close.
+                share your plant stories and ask for advice!
             </p>
             <form className="inline-form" onSubmit={add}>
                 <input name="title" placeholder="panel item" required />
