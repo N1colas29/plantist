@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
 import {
     BrowserRouter,
@@ -456,46 +456,350 @@ function Plants({ account }) {
         </section>
     );
 }
-function Panel({ account }) {
-    const [items, setItems] = useState([]);
-    useEffect(() => {
-        if (account) api("/panel").then((d) => setItems(d.items));
-    }, [account]);
-    if (!account) return <RequireLogin />;
-    const add = async (e) => {
-        e.preventDefault();
-        const d = await api("/panel", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(
-                Object.fromEntries(new FormData(e.currentTarget)),
-            ),
-        });
-        setItems((x) => [...x, d.item]);
-        e.currentTarget.reset();
-    };
+function PlantPanel({ account }) {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showPostForm, setShowPostForm] = useState(false);
+
+  useEffect(() => {
+    if (!account) return;
+
+    loadPosts();
+  }, [account]);
+
+  async function loadPosts() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await api("/panel");
+      setPosts(data.posts);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!account) {
+    return <RequireLogin />;
+  }
+
+  async function createPost(event) {
+    event.preventDefault();
+
+    setError("");
+
+    try {
+      const form = new FormData(event.currentTarget);
+
+      await api("/panel/posts", {
+        method: "POST",
+        body: form
+      });
+
+      event.currentTarget.reset();
+      setShowPostForm(false);
+
+      // The user specifically said real-time updates are unnecessary.
+      // Reloading the forum from the account file is sufficient.
+      await loadPosts();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function createReply(postId, formElement) {
+    setError("");
+
+    try {
+      const form = new FormData(formElement);
+
+      await api(`/panel/posts/${postId}/replies`, {
+        method: "POST",
+        body: form
+      });
+
+      formElement.reset();
+
+      await loadPosts();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <section className="content-page forum-page">
+
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">community garden</p>
+          <h1>plant panel</h1>
+          <p className="intro-copy small">
+            Ask questions, share observations, and keep conversations about
+            plants in one place.
+          </p>
+        </div>
+
+        <button
+          className="button-link"
+          onClick={() => setShowPostForm(!showPostForm)}
+        >
+          {showPostForm ? "close" : "+ new post"}
+        </button>
+      </div>
+
+      {showPostForm && (
+        <form className="forum-form" onSubmit={createPost}>
+
+          <p className="eyebrow">new discussion</p>
+
+          <label className="field">
+            <span>Title</span>
+            <input
+              name="title"
+              type="text"
+              placeholder="What would you like to discuss?"
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span>Body</span>
+            <textarea
+              name="body"
+              rows="7"
+              placeholder="Write your post..."
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span>Optional file</span>
+            <input
+              name="file"
+              type="file"
+              accept="image/*,.pdf,.txt,.doc,.docx"
+            />
+          </label>
+
+          <button className="submit-button">
+            publish post
+          </button>
+        </form>
+      )}
+
+      {error && (
+        <p className="error">
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <div className="empty-state">
+          loading the panel...
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="empty-state">
+          <p>No discussions yet.</p>
+
+          <button
+            className="button-link"
+            onClick={() => setShowPostForm(true)}
+          >
+            start the first one
+          </button>
+        </div>
+      ) : (
+        <div className="forum-list">
+
+          {posts.map((post) => (
+            <ForumPost
+              key={post.id}
+              post={post}
+              account={account}
+              onReply={createReply}
+            />
+          ))}
+
+        </div>
+      )}
+    </section>
+  );
+}
+function ForumPost({ post, account, onReply }) {
+  const [replyOpen, setReplyOpen] = useState(false);
+
+  return (
+    <article className="forum-post">
+
+      <header className="forum-post-header">
+
+        <div>
+          <p className="eyebrow">
+            @{post.author?.username || post.username}
+          </p>
+
+          <h2>{post.title}</h2>
+        </div>
+
+        <time>
+          {new Date(post.createdAt).toLocaleDateString()}
+        </time>
+
+      </header>
+
+      <div className="forum-post-body">
+        <p>
+          {post.body}
+        </p>
+
+        {post.attachment && (
+          <ForumAttachment attachment={post.attachment} />
+        )}
+      </div>
+
+      <div className="forum-post-footer">
+
+        <span>
+          {post.replies?.length || 0}{" "}
+          {post.replies?.length === 1 ? "reply" : "replies"}
+        </span>
+
+        <button
+          className="reply-button"
+          onClick={() => setReplyOpen(!replyOpen)}
+        >
+          {replyOpen ? "close" : "reply"}
+        </button>
+
+      </div>
+
+      {post.replies?.length > 0 && (
+        <div className="reply-list">
+
+          {post.replies.map((reply) => (
+            <article className="forum-reply" key={reply.id}>
+
+              <div className="reply-heading">
+
+                <div>
+                  <p className="eyebrow">
+                    @{reply.author?.username || reply.username}
+                  </p>
+
+                  <h3>{reply.title}</h3>
+                </div>
+
+                <time>
+                  {new Date(reply.createdAt).toLocaleDateString()}
+                </time>
+
+              </div>
+
+              <p>
+                {reply.body}
+              </p>
+
+              {reply.attachment && (
+                <ForumAttachment
+                  attachment={reply.attachment}
+                />
+              )}
+
+            </article>
+          ))}
+
+        </div>
+      )}
+
+      {replyOpen && (
+        <form
+          className="reply-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onReply(post.id, event.currentTarget);
+            setReplyOpen(false);
+          }}
+        >
+
+          <p className="eyebrow">
+            reply as @{account.username}
+          </p>
+
+          <label className="field">
+            <span>Title</span>
+            <input
+              name="title"
+              type="text"
+              placeholder="Reply title"
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span>Body</span>
+            <textarea
+              name="body"
+              rows="5"
+              placeholder="Write your reply..."
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span>Optional file</span>
+            <input
+              name="file"
+              type="file"
+              accept="image/*,.pdf,.txt,.doc,.docx"
+            />
+          </label>
+
+          <button className="submit-button">
+            publish reply
+          </button>
+
+        </form>
+      )}
+
+    </article>
+  );
+}
+function ForumAttachment({ attachment }) {
+  const isImage = attachment.mimeType?.startsWith("image/");
+
+  if (isImage) {
     return (
-        <section className="content-page">
-            <p className="eyebrow">your garden</p>
-            <h1>plant panel</h1>
-            <p className="intro-copy small">
-                share your plant stories and ask for advice!
-            </p>
-            <form className="inline-form" onSubmit={add}>
-                <input name="title" placeholder="panel item" required />
-                <input name="note" placeholder="note" />
-                <button className="button-link">add</button>
-            </form>
-            <div className="panel-list">
-                {items.map((i) => (
-                    <div className="panel-item" key={i.id}>
-                        <strong>{i.title}</strong>
-                        <span>{i.note}</span>
-                    </div>
-                ))}
-            </div>
-        </section>
+      <div className="forum-attachment image-attachment">
+        <img
+          src={attachment.url}
+          alt={attachment.filename}
+        />
+
+        <a
+          href={attachment.url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {attachment.filename}
+        </a>
+      </div>
     );
+  }
+
+  return (
+    <div className="forum-attachment">
+      <a
+        href={attachment.url}
+        target="_blank"
+        rel="noreferrer"
+      >
+        open {attachment.filename}
+      </a>
+    </div>
+  );
 }
 function Protocol({ account }) {
     const [level, setLevel] = useState(1),
@@ -587,7 +891,9 @@ function App() {
     );
 }
 ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
     <BrowserRouter>
-        <App />
-    </BrowserRouter>,
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>
 );

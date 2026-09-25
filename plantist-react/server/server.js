@@ -174,22 +174,202 @@ app.post("/api/plants", auth, upload.array("images", 12), (req, res) => {
 app.get("/api/plants", auth, (req, res) =>
     res.json({ plants: me(req)["Plant Profiles"] }),
 );
-app.post("/api/panel", auth, (req, res) => {
-    const d = read(),
-        a = d.accounts.find((x) => x.id === req.session.accountId),
-        item = {
-            id: id("panel"),
-            title: String(req.body.title || "").trim(),
-            note: String(req.body.note || "").trim(),
-            createdAt: new Date().toISOString(),
-        };
-    a["Plant Panel Items"].push(item);
-    write(d);
-    res.status(201).json({ item });
-});
-app.get("/api/panel", auth, (req, res) =>
-    res.json({ items: me(req)["Plant Panel Items"] }),
+app.post(
+  "/api/panel/posts",
+  requireLogin,
+  upload.single("file"),
+  (req, res) => {
+    const database = readDatabase();
+
+    const account = database.accounts.find(
+      (item) => item.id === req.session.accountId
+    );
+
+    if (!account) {
+      return res.status(401).json({
+        error: "Account not found."
+      });
+    }
+
+    const title = String(req.body.title || "").trim();
+    const body = String(req.body.body || "").trim();
+
+    if (!title || !body) {
+      return res.status(400).json({
+        error: "A title and body are required."
+      });
+    }
+
+    const post = {
+      id: makeId("post"),
+
+      accountId: account.id,
+      username: account.username,
+
+      title,
+      body,
+
+      attachment: req.file
+        ? {
+            filename: req.file.originalname,
+            url: `/uploads/${req.file.filename}`,
+            mimeType: req.file.mimetype
+          }
+        : null,
+
+      createdAt: new Date().toISOString(),
+
+      replies: []
+    };
+
+    if (!Array.isArray(account["Plant Panel Items"])) {
+      account["Plant Panel Items"] = [];
+    }
+
+    account["Plant Panel Items"].push(post);
+
+    writeDatabase(database);
+
+    res.status(201).json({
+      post: {
+        ...post,
+        author: {
+          id: account.id,
+          username: account.username,
+          name: account.name,
+          profileImage: account.profileImage || ""
+        }
+      }
+    });
+  }
 );
+
+
+app.post(
+  "/api/panel/posts/:postId/replies",
+  requireLogin,
+  upload.single("file"),
+  (req, res) => {
+    const database = readDatabase();
+
+    const account = database.accounts.find(
+      (item) => item.id === req.session.accountId
+    );
+
+    if (!account) {
+      return res.status(401).json({
+        error: "Account not found."
+      });
+    }
+
+    const title = String(req.body.title || "").trim();
+    const body = String(req.body.body || "").trim();
+
+    if (!title || !body) {
+      return res.status(400).json({
+        error: "A title and body are required."
+      });
+    }
+
+    // Find the post regardless of which account owns it.
+    let originalPost = null;
+
+    for (const author of database.accounts) {
+      const post = (author["Plant Panel Items"] || []).find(
+        (item) => item.id === req.params.postId
+      );
+
+      if (post) {
+        originalPost = post;
+        break;
+      }
+    }
+
+    if (!originalPost) {
+      return res.status(404).json({
+        error: "Post not found."
+      });
+    }
+
+    if (!Array.isArray(originalPost.replies)) {
+      originalPost.replies = [];
+    }
+
+    const reply = {
+      id: makeId("reply"),
+
+      accountId: account.id,
+      username: account.username,
+
+      title,
+      body,
+
+      attachment: req.file
+        ? {
+            filename: req.file.originalname,
+            url: `/uploads/${req.file.filename}`,
+            mimeType: req.file.mimetype
+          }
+        : null,
+
+      createdAt: new Date().toISOString()
+    };
+
+    originalPost.replies.push(reply);
+
+    writeDatabase(database);
+
+    res.status(201).json({
+      reply: {
+        ...reply,
+        author: {
+          id: account.id,
+          username: account.username,
+          name: account.name,
+          profileImage: account.profileImage || ""
+        }
+      }
+    });
+  }
+);
+app.get("/api/panel", requireLogin, (req, res) => {
+  const database = readDatabase();
+
+  const account = database.accounts.find(
+    (item) => item.id === req.session.accountId
+  );
+
+  if (!account) {
+    return res.status(401).json({
+      error: "Account not found."
+    });
+  }
+
+  // Every account owns its own panel data.
+  // Posts from every account are collected into one forum.
+  const posts = database.accounts.flatMap((author) =>
+    (author["Plant Panel Items"] || []).map((post) => ({
+      ...post,
+      author: {
+        id: author.id,
+        username: author.username,
+        name: author.name,
+        profileImage: author.profileImage || ""
+      }
+    }))
+  );
+
+  // Newest posts first.
+  posts.sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() -
+      new Date(a.createdAt).getTime()
+  );
+
+  res.json({
+    posts
+  });
+});
 app.get("/api/protocols", auth, (req, res) =>
     res.json({ protocols: me(req)["Plant Protocols Scale"] }),
 );
