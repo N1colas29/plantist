@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useState, useEffect} from "react";
 import ReactDOM from "react-dom/client";
 import {
     BrowserRouter,
@@ -501,9 +501,6 @@ function PlantPanel({ account }) {
 
       event.currentTarget.reset();
       setShowPostForm(false);
-
-      // The user specifically said real-time updates are unnecessary.
-      // Reloading the forum from the account file is sufficient.
       await loadPosts();
     } catch (err) {
       setError(err.message);
@@ -881,7 +878,7 @@ function App() {
                     element={<Account account={account} />}
                 />
                 <Route path="/plants" element={<Plants account={account} />} />
-                <Route path="/panel" element={<Panel account={account} />} />
+                <Route path="/panel" element={<PlantPanel account={account} />} />
                 <Route
                     path="/protocol"
                     element={<Protocol account={account} />}
@@ -896,4 +893,4 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <App />
     </BrowserRouter>
   </React.StrictMode>
-);
+)

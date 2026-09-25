@@ -176,10 +176,9 @@ app.get("/api/plants", auth, (req, res) =>
 );
 app.post(
   "/api/panel/posts",
-  requireLogin,
   upload.single("file"),
   (req, res) => {
-    const database = readDatabase();
+    const database = database();
 
     const account = database.accounts.find(
       (item) => item.id === req.session.accountId
@@ -247,10 +246,9 @@ app.post(
 
 app.post(
   "/api/panel/posts/:postId/replies",
-  requireLogin,
   upload.single("file"),
   (req, res) => {
-    const database = readDatabase();
+    const database = database();
 
     const account = database.accounts.find(
       (item) => item.id === req.session.accountId
@@ -271,7 +269,6 @@ app.post(
       });
     }
 
-    // Find the post regardless of which account owns it.
     let originalPost = null;
 
     for (const author of database.accounts) {
@@ -332,8 +329,8 @@ app.post(
     });
   }
 );
-app.get("/api/panel", requireLogin, (req, res) => {
-  const database = readDatabase();
+app.get("/api/panel", (req, res) => {
+  const database = database();
 
   const account = database.accounts.find(
     (item) => item.id === req.session.accountId
@@ -344,9 +341,6 @@ app.get("/api/panel", requireLogin, (req, res) => {
       error: "Account not found."
     });
   }
-
-  // Every account owns its own panel data.
-  // Posts from every account are collected into one forum.
   const posts = database.accounts.flatMap((author) =>
     (author["Plant Panel Items"] || []).map((post) => ({
       ...post,
@@ -359,7 +353,6 @@ app.get("/api/panel", requireLogin, (req, res) => {
     }))
   );
 
-  // Newest posts first.
   posts.sort(
     (a, b) =>
       new Date(b.createdAt).getTime() -
