@@ -310,7 +310,7 @@ function Plants({ account }) {
                     <h1>plant profiles</h1>
                 </div>
                 <button className="button-link" onClick={() => setShow(!show)}>
-                    {show ? "close" : "+ new plant"}
+                    {show ? "cancel" : "+ new plant"}
                 </button>
             </div>
             {show && (
@@ -851,6 +851,21 @@ function Protocol({ account }) {
             {msg && <span className="saved">{msg}</span>}
         </section>
     );
+}
+function Articles() {
+
+
+    return (
+        <section className = "content-page narrow">
+        <div className="articles">
+            <p className = "eyebrow"> learn, grow, and have fun! </p>
+            <h1>plant protocols</h1>
+            <p className="intro-copy small">
+                learn more about your favorite plants and the wide world of botany
+            </p>
+        </div>
+         </section>
+    )
 }
 function App() {
     const [account, setAccount] = useState(null),
