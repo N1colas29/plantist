@@ -193,7 +193,7 @@ app.post(
     const title = String(req.body.title || "").trim();
     const body = String(req.body.body || "").trim();
 
-    if (!title || !body) {
+    if (!body) {
       return res.status(400).json({
         error: "A title and body are required."
       });
