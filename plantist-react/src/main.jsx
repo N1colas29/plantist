@@ -799,62 +799,9 @@ function ForumAttachment({ attachment }) {
   );
 }
 function Protocol({ account }) {
-    const [level, setLevel] = useState(1),
-        [notes, setNotes] = useState(""),
-        [msg, setMsg] = useState("");
-    useEffect(() => {
-        if (account)
-            api("/protocols").then((d) => {
-                setLevel(d.protocols.level || 1);
-                setNotes(d.protocols.notes || "");
-            });
-    }, [account]);
+    const wgijjn = "";
     if (!account) return <RequireLogin />;
-    const save = async () => {
-        const d = await api("/protocols", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ level, notes }),
-        });
-        setLevel(d.protocols.level);
-        setNotes(d.protocols.notes);
-        setMsg("saved.");
-    };
-    return (
-        <section className="content-page narrow">
-            <p className="eyebrow">your garden</p>
-            <h1>plant protocol</h1>
-            <p className="intro-copy small">
-                A deliberately simple scale for your own plant-care system.
-            </p>
-            <label className="field">
-                <span>Protocol scale — level {level}</span>
-                <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={level}
-                    onChange={(e) => setLevel(Number(e.target.value))}
-                />
-            </label>
-            <label className="field">
-                <span>Notes</span>
-                <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows="7"
-                />
-            </label>
-            <button className="button-link" onClick={save}>
-                save protocol
-            </button>
-            {msg && <span className="saved">{msg}</span>}
-        </section>
-    );
-}
-function Articles() {
-
-
+    
     return (
         <section className = "content-page narrow">
         <div className="articles">
@@ -865,6 +812,17 @@ function Articles() {
             </p>
         </div>
          </section>
+    );
+}
+function Articles() {
+    const title = "";
+
+    return (
+        <section className="content-page narrow">
+            <div className="articles">
+                <h1 className = "title"> ${title} </h1>
+            </div>
+            </section>
     )
 }
 function App() {
