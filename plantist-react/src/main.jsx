@@ -473,7 +473,7 @@ function PlantPanel({ account }) {
     setError("");
 
     try {
-      const data = await api("/panel");
+      const data = await api("/panel", { method: "GET" });
       setPosts(data.posts);
     } catch (err) {
       setError(err.message);
