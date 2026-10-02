@@ -252,7 +252,7 @@ function Account({ account }) {
         <section className="simple-page account-page">
             <p className="eyebrow">account</p>
             <h1>{account.name || account.username}</h1>
-            <p className="muted">@{account.username}</p>
+            <Link to="/edit" className="edit-link">@{account.username} →</Link>
             <div className="account-grid">
                 <div className="data-card">
                     <span>Plant Profiles</span>
@@ -275,6 +275,12 @@ function Account({ account }) {
         </section>
     );
 }
+function EditAccount({ account }) {
+    if (!account) return <RequireLogin />;
+    const [name, setName] = useState(account?.name || "");
+
+}
+
 function Plants({ account }) {
     const [plants, setPlants] = useState([]),
         [show, setShow] = useState(false),
