@@ -260,7 +260,7 @@ function Account({ account }) {
                     <Link to="/plants">manage profiles →</Link>
                 </div>
                 <div className="data-card">
-                    <span>Plant Protocols Scale</span>
+                    <span>Plant Protocols </span>
                     <strong>
                         Level {account["Plant Protocols Scale"]?.level || 1}
                     </strong>
@@ -278,7 +278,50 @@ function Account({ account }) {
 function EditAccount({ account }) {
     if (!account) return <RequireLogin />;
     const [name, setName] = useState(account?.name || "");
-
+    const [username, setUsername] = useState(account?.username || "");
+    const [password, setPassword] = useState(account?.password || "");
+    const [profilePicture, setProfilePicture] = useState(account?.profilePicture || "");
+    useEffect(() => {
+        if (account)
+            api("/edit")
+                .catch((e) => setErr(e.message));
+    }, [account]);
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const d = await api("/edit", {
+                method: "PUT",
+                body: JSON.stringify({ name, username, password, profilePicture }),
+            });
+        } catch (e) {
+            console.error(e.message);
+        }
+    };
+    return (
+        <section className="simple-page edit-account-page">
+            <p className="eyebrow">edit account</p>
+            <h1>Edit Your Profile</h1>
+            <form onSubmit={handleSubmit}>
+                <label>
+                    Name:
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+                </label>
+                <label>
+                    Username:
+                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} />
+                </label>
+                <label>
+                    Password:
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                </label>
+                <label>
+                    Profile Picture:
+                    <input type="text" value={profilePicture} onChange={(e) => setProfilePicture(e.target.value)} />
+                </label>
+                <button type="submit">Save Changes</button>
+            </form>
+        </section>
+    );
 }
 
 function Plants({ account }) {
@@ -460,6 +503,13 @@ function Plants({ account }) {
                 </div>
             )}
         </section>
+    );
+}
+function editPlants({accounts}) {
+
+
+    return (
+        <section></section>
     );
 }
 function PlantPanel({ account }) {
