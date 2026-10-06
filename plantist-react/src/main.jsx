@@ -10,7 +10,7 @@ import {
     Route,
 } from "react-router-dom";
 import "./style.css";
-
+import { supabase } from './utils/supabase'
 const api = async (path, options = {}) => {
     const r = await fetch(`/api${path}`, {
         credentials: "include",
@@ -505,8 +505,9 @@ function Plants({ account }) {
         </section>
     );
 }
-function editPlants({accounts}) {
-
+function editPlants({account}) {
+    if (!account) return <RequireLogin />;
+    
 
     return (
         <section></section>
@@ -882,6 +883,29 @@ function Articles() {
     )
 }
 function App() {
+     {
+  const [todos, setTodos] = useState([])
+
+  useEffect(() => {
+    async function getTodos() {
+      const { data: todos } = await supabase.from('todos').select()
+
+      if (todos) {
+        setTodos(todos)
+      }
+    }
+
+    getTodos()
+  }, []);
+
+  return (
+    <ul>
+      {todos.map((todo) => (
+        <li key={todo.id}>{todo.name}</li>
+      ))}
+    </ul>
+  )
+}
     const [account, setAccount] = useState(null),
         [loading, setLoading] = useState(true),
         loc = useLocation();
