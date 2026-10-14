@@ -1,0 +1,929 @@
+const api = async (path, options = {}) => {
+    const r = await fetch(`/api${path}`, {
+        credentials: "include",
+        ...options,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "Something went wrong.");
+    return d;
+};
+const ageDays = (p) => {
+    const platform = Math.max(
+        0,
+        Math.floor(
+            (Date.now() - new Date(p.ageStartedAt).getTime()) / 86400000,
+        ),
+    );
+    return { platform, total: Number(p.manuallyAddedAgeDays || 0) + platform };
+};
+const ageText = (d, u) =>
+    u === "weeks"
+        ? `${(d / 7).toFixed(1)} weeks`
+        : u === "months"
+          ? `${(d / 30.4375).toFixed(1)} months`
+          : u === "years"
+            ? `${(d / 365.25).toFixed(1)} years`
+            : `${d} days`;
+
+function Nav({ account, onLogout }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <header className="nav">
+            <Link className="brand" to="/">
+                plantist
+            </Link>
+            <nav className="nav-links">
+                {account ? (
+                    <button className="nav-account" onClick={onLogout}>
+                        Sign out
+                    </button>
+                ) : (
+                    <NavLink className="sign-in" to="/login">
+                        Sign in
+                    </NavLink>
+                )}
+                <NavLink to="/">Home</NavLink>
+                <div className="nav-dropdown" 
+                
+                onMouseEnter={() => setOpen(open)}
+                onMouseLeave={() => setOpen(!open)}>
+                    <button
+                        className="dropdown-button"
+                    >
+                        PLANTS
+                    </button>
+                    {open && (
+                        <div className="dropdown-menu">
+                            <Link to="/plants" onClick={() => setOpen(false)}>
+                                Plant Profiles
+                            </Link>
+                            <Link to="/panel" onClick={() => setOpen(false)}>
+                                Plant Panel
+                            </Link>
+                            <Link to="/protocol" onClick={() => setOpen(false)}>
+                                Plant Protocol
+                            </Link>
+                        </div>
+                    )}
+                </div>
+                <NavLink to="/about">About</NavLink>
+                {account && <NavLink to="/account">Account</NavLink>}
+            </nav>
+        </header>
+    );
+}
+function Layout({ account, setAccount, children }) {
+    const nav = useNavigate();
+    const logout = async () => {
+        await api("/auth/logout", { method: "POST" });
+        setAccount(null);
+        nav("/");
+    };
+    return (
+        <>
+            <Nav account={account} onLogout={logout} />
+            <main>{children}</main>
+        </>
+    );
+}
+function Home() {
+    return (
+        <>
+            <section className="intro">
+                <p className="eyebrow">welcome to plantist</p>
+                <h1>what we do</h1>
+                <p className="intro-copy">
+                    track your plants, learn about our community, and discover new ways to care for your green friends.
+                </p>
+                <Link className="text-link" to="/plants">
+                    explore plant profiles →
+                </Link>
+            </section>
+            <section className="gallery">
+                <div className="plant-card">image placeholder</div>
+                <div className="plant-card tall">image placeholder</div>
+                <div className="plant-card">image placeholder</div>
+                <div className="plant-card wide">image placeholder</div>
+            </section>
+            <footer className="footer">insert contacts here later</footer>
+        </>
+    );
+}
+function About() {
+    return (
+        <section className="simple-page">
+            <p className="eyebrow">about</p>
+            <h1>plantist</h1>
+            <p>About content can live here later.</p>
+        </section>
+    );
+}
+function Login({ setAccount }) {
+    const [mode, setMode] = useState("signup"),
+        [msg, setMsg] = useState(""),
+        [busy, setBusy] = useState(false),
+        nav = useNavigate();
+    const submit = async (e) => {
+        e.preventDefault();
+        setMsg("");
+        setBusy(true);
+        try {
+            const formElement = e.currentTarget; 
+            const form = new FormData(formElement);
+            const path = mode === "signup" ? "/auth/signup" : "/auth/login";
+            const bodyOptions = mode === "signup" 
+             ? { body: form }: { 
+                  body: JSON.stringify(Object.fromEntries(form.entries())), 
+                     headers: { "Content-Type": "application/json" } 
+                   };
+
+            const d = await api(path, { method: "POST", ...bodyOptions });
+            setAccount(d.account);
+            setMsg(d.message);
+            formElement.reset();
+            setTimeout(() => nav("/account"), 700);
+        } catch (x) {
+            setMsg(x.message);
+        } finally {
+            setBusy(false);
+        }
+    };
+    return (
+        <section className="login-main">
+            <div className="login-card">
+                <p className="eyebrow">plantist</p>
+                <h1>
+                    {mode === "signup" ? "join us" : "welcome back"}
+                </h1>
+                <p className="form-note">
+                    {mode === "signup"
+                        ? "Create an account or sign in below."
+                        : "Sign in to continue to plantist."}
+                </p>
+                <form onSubmit={submit}>
+                    {mode === "signup" && (
+                        <>
+                            <label className="field">
+                                <span>Profile picture</span>
+                                <input
+                                    name="profile"
+                                    type="file"
+                                    accept="image/*"
+                                />
+                            </label>
+                            <label className="field">
+                                <span>Name</span>
+                                <input name="name" autoComplete="name" />
+                            </label>
+                        </>
+                    )}
+                    <label className="field">
+                        <span>Username</span>
+                        <input
+                            name="username"
+                            autoComplete="username"
+                            required
+                        />
+                    </label>
+                    <label className="field">
+                        <span>Password</span>
+                        <input
+                            name="password"
+                            type="password"
+                            autoComplete="current-password"
+                            required
+                        />
+                    </label>
+                    <button className="submit-button" disabled={busy}>
+                        {busy
+                            ? "working..."
+                            : mode === "signup"
+                              ? "Create account"
+                              : "Sign in"}
+                    </button>
+                </form>
+                <button
+                    className="switch-button"
+                    onClick={() => {
+                        setMode(mode === "signup" ? "login" : "signup");
+                        setMsg("");
+                    }}
+                >
+                    {mode === "signup"
+                        ? "Already have an account? Sign in"
+                        : "New here? Create an account"}
+                </button>
+                {msg && <p className="message">{msg}</p>}
+                <Link className="back-home" to="/">
+                    back to home
+                </Link>
+            </div>
+        </section>
+    );
+}
+function RequireLogin() {
+    return (
+        <section className="simple-page">
+            <p className="eyebrow">your garden</p>
+            <h1>log in first</h1>
+            <p>You need an account to view and create plant profiles.</p>
+            <Link className="button-link" to="/login">
+                log in / create account
+            </Link>
+        </section>
+    );
+}
+function Account({ account }) {
+    if (!account) return <RequireLogin />;
+    return (
+        <section className="simple-page account-page">
+            <p className="eyebrow">account</p>
+            <h1>{account.name || account.username}</h1>
+            <Link to="/edit" className="edit-link">@{account.username} →</Link>
+            <div className="account-grid">
+                <div className="data-card">
+                    <span>Plant Profiles</span>
+                    <strong>{account["Plant Profiles"]?.length || 0}</strong>
+                    <Link to="/plants">manage profiles →</Link>
+                </div>
+                <div className="data-card">
+                    <span>Plant Protocols </span>
+                    <strong>
+                        Level {account["Plant Protocols Scale"]?.level || 1}
+                    </strong>
+                    <Link to="/protocol">view protocol →</Link>
+                </div>
+                <div className="data-card">
+                    <span>Plant Panel Items</span>
+                    <strong>{account["Plant Panel Items"]?.length || 0}</strong>
+                    <Link to="/panel">open panel →</Link>
+                </div>
+            </div>
+        </section>
+    );
+}
+function EditAccount({ account }) {
+    if (!account) return <RequireLogin />;
+    const [name, setName] = useState(account?.name || "");
+    const [username, setUsername] = useState(account?.username || "");
+    const [password, setPassword] = useState(account?.password || "");
+    const [profilePicture, setProfilePicture] = useState(account?.profilePicture || "");
+    useEffect(() => {
+        if (account)
+            api("/edit")
+                .catch((e) => setErr(e.message));
+    }, [account]);
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const d = await api("/edit", {
+                method: "PUT",
+                body: JSON.stringify({ name, username, password, profilePicture }),
+            });
+        } catch (e) {
+            console.error(e.message);
+        }
+    };
+    return (
+        <section className="simple-page edit-account-page">
+            <p className="eyebrow">edit account</p>
+            <h1>Edit Your Profile</h1>
+            <form onSubmit={handleSubmit}>
+                <label>
+                    Name:
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+                </label>
+                <label>
+                    Username:
+                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} />
+                </label>
+                <label>
+                    Password:
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                </label>
+                <label>
+                    Profile Picture:
+                    <input type="text" value={profilePicture} onChange={(e) => setProfilePicture(e.target.value)} />
+                </label>
+                <button type="submit">Save Changes</button>
+            </form>
+        </section>
+    );
+}
+
+function Plants({ account }) {
+    const [plants, setPlants] = useState([]),
+        [show, setShow] = useState(false),
+        [err, setErr] = useState(""),
+        [unit, setUnit] = useState("days"),
+        [kind, setKind] = useState("total");
+    useEffect(() => {
+        if (account)
+            api("/plants")
+                .then((d) => setPlants(d.plants))
+                .catch((e) => setErr(e.message));
+    }, [account]);
+    if (!account) return <RequireLogin />;
+    const create = async (e) => {
+        e.preventDefault();
+        try {
+            const d = await api("/plants", {
+                method: "POST",
+                body: new FormData(e.currentTarget),
+            });
+            setPlants((x) => [...x, d.plant]);
+            formElement.reset();
+            setShow(false);
+        } catch (e) {
+            setErr(e.message);
+        }
+    };
+    return (
+        <section className="content-page">
+            <div className="page-heading">
+                <div>
+                    <p className="eyebrow">your garden</p>
+                    <h1>plant profiles</h1>
+                </div>
+                <button className="button-link" onClick={() => setShow(!show)}>
+                    {show ? "cancel" : "+ new plant"}
+                </button>
+            </div>
+            {show && (
+                <form className="plant-form" onSubmit={create}>
+                    <div className="form-columns">
+                        <label className="field">
+                            <span>Add name</span>
+                            <input name="name" required />
+                        </label>
+                        <label className="field">
+                            <span>Add species type</span>
+                            <input name="speciesType" />
+                        </label>
+                    </div>
+                    <label className="field">
+                        <span>Add description</span>
+                        <textarea name="description" rows="4" />
+                    </label>
+                    <label className="field">
+                        <span>Starting age in days</span>
+                        <input
+                            name="manuallyAddedAgeDays"
+                            type="number"
+                            min="0"
+                            defaultValue="0"
+                        />
+                    </label>
+                    <div className="form-columns">
+                        <label className="field">
+                            <span>Color</span>
+                            <input name="color" />
+                        </label>
+                        <label className="field">
+                            <span>Size</span>
+                            <input name="size" />
+                        </label>
+                    </div>
+                    <label className="field">
+                        <span>Additional specs</span>
+                        <textarea
+                            name="otherSpecs"
+                            rows="3"
+                            placeholder="soil, light, pot, notes..."
+                        />
+                    </label>
+                    <label className="field">
+                        <span>Add image(s)</span>
+                        <input
+                            name="images"
+                            type="file"
+                            accept="image/*"
+                            multiple
+                        />
+                    </label>
+                    <button className="submit-button">
+                        create plant profile
+                    </button>
+                </form>
+            )}
+            {err && <p className="error">{err}</p>}
+            <div className="age-controls">
+                <span>Show:</span>
+                <button
+                    className={kind === "total" ? "selected" : ""}
+                    onClick={() => setKind("total")}
+                >
+                    total age
+                </button>
+                <button
+                    className={kind === "platform" ? "selected" : ""}
+                    onClick={() => setKind("platform")}
+                >
+                    age on platform
+                </button>
+                <select value={unit} onChange={(e) => setUnit(e.target.value)}>
+                    <option value="days">days</option>
+                    <option value="weeks">weeks</option>
+                    <option value="months">months</option>
+                    <option value="years">years</option>
+                </select>
+            </div>
+            {plants.length === 0 ? (
+                <div className="empty-state">No plant profiles yet.</div>
+            ) : (
+                <div className="plant-list">
+                    {plants.map((p) => {
+                        const a = ageDays(p),
+                            d = kind === "platform" ? a.platform : a.total;
+                        return (
+                            <article className="plant-profile" key={p.id}>
+                                <div className="plant-image">
+                                    {p.images?.[0] ? (
+                                        <img
+                                            src={p.images[0].url}
+                                            alt={p.name}
+                                        />
+                                    ) : (
+                                        <span>image placeholder</span>
+                                    )}
+                                </div>
+                                <div className="plant-info">
+                                    <p className="eyebrow">
+                                        {p.speciesType || "plant"}
+                                    </p>
+                                    <h2>{p.name}</h2>
+                                    <p>
+                                        {p.description || "No description yet."}
+                                    </p>
+                                    <div className="plant-meta">
+                                        <span>
+                                            <b>Age</b>
+                                            {ageText(d, unit)}
+                                        </span>
+                                        <span>
+                                            <b>Color</b>
+                                            {p.additionalSpecs?.color || "—"}
+                                        </span>
+                                        <span>
+                                            <b>Size</b>
+                                            {p.additionalSpecs?.size || "—"}
+                                        </span>
+                                    </div>
+                                    <details>
+                                        <summary>timeline & images</summary>
+                                        {p.timeline?.map((t) => (
+                                            <div
+                                                className="timeline-row"
+                                                key={t.imageId}
+                                            >
+                                                {new Date(
+                                                    t.date,
+                                                ).toLocaleDateString()}{" "}
+                                                — {t.note}
+                                            </div>
+                                        ))}
+                                    </details>
+                                </div>
+                            </article>
+                        );
+                    })}
+                </div>
+            )}
+        </section>
+    );
+}
+function editPlants({account}) {
+    if (!account) return <RequireLogin />;
+    
+
+    return (
+        <section></section>
+    );
+}
+function PlantPanel({ account }) {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showPostForm, setShowPostForm] = useState(false);
+
+  useEffect(() => {
+    if (!account) return;
+
+    loadPosts();
+  }, [account]);
+
+  async function loadPosts() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await api("/panel", { method: "GET" });
+      setPosts(data.posts);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!account) {
+    return <RequireLogin />;
+  }
+
+  async function createPost(event) {
+    event.preventDefault();
+
+    setError("");
+
+    try {
+      const form = new FormData(event.currentTarget);
+
+      await api("/panel/posts", {
+        method: "POST",
+        body: form
+      });
+
+      event.currentTarget.reset();
+      setShowPostForm(false);
+      await loadPosts();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function createReply(postId, formElement) {
+    setError("");
+
+    try {
+      const form = new FormData(formElement);
+
+      await api(`/panel/posts/${postId}/replies`, {
+        method: "POST",
+        body: form
+      });
+
+      formElement.reset();
+
+      await loadPosts();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <section className="content-page forum-page">
+
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">community garden</p>
+          <h1>plant panel</h1>
+          <p className="intro-copy small">
+            Ask questions, share observations, and keep conversations about
+            plants in one place.
+          </p>
+        </div>
+
+        <button
+          className="button-link"
+          onClick={() => setShowPostForm(!showPostForm)}
+        >
+          {showPostForm ? "close" : "+ new post"}
+        </button>
+      </div>
+
+      {showPostForm && (
+        <form className="forum-form" onSubmit={createPost}>
+
+          <p className="eyebrow">new discussion</p>
+
+          <label className="field">
+            <span>Title</span>
+            <input
+              name="title"
+              type="text"
+              placeholder="What would you like to discuss?"
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span>Body</span>
+            <textarea
+              name="body"
+              rows="7"
+              placeholder="Write your post..."
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span>Optional file</span>
+            <input
+              name="file"
+              type="file"
+              accept="image/*,.pdf,.txt,.doc,.docx"
+            />
+          </label>
+
+          <button className="submit-button">
+            publish post
+          </button>
+        </form>
+      )}
+
+      {error && (
+        <p className="error">
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <div className="empty-state">
+          loading the panel...
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="empty-state">
+          <p>No discussions yet.</p>
+
+          <button
+            className="button-link"
+            onClick={() => setShowPostForm(true)}
+          >
+            start the first one
+          </button>
+        </div>
+      ) : (
+        <div className="forum-list">
+
+          {posts.map((post) => (
+            <ForumPost
+              key={post.id}
+              post={post}
+              account={account}
+              onReply={createReply}
+            />
+          ))}
+
+        </div>
+      )}
+    </section>
+  );
+}
+function ForumPost({ post, account, onReply }) {
+  const [replyOpen, setReplyOpen] = useState(false);
+
+  return (
+    <article className="forum-post">
+
+      <header className="forum-post-header">
+
+        <div>
+          <p className="eyebrow">
+            @{post.author?.username || post.username}
+          </p>
+
+          <h2>{post.title}</h2>
+        </div>
+
+        <time>
+          {new Date(post.createdAt).toLocaleDateString()}
+        </time>
+
+      </header>
+
+      <div className="forum-post-body">
+        <p>
+          {post.body}
+        </p>
+
+        {post.attachment && (
+          <ForumAttachment attachment={post.attachment} />
+        )}
+      </div>
+
+      <div className="forum-post-footer">
+
+        <span>
+          {post.replies?.length || 0}{" "}
+          {post.replies?.length === 1 ? "reply" : "replies"}
+        </span>
+
+        <button
+          className="reply-button"
+          onClick={() => setReplyOpen(!replyOpen)}
+        >
+          {replyOpen ? "close" : "reply"}
+        </button>
+
+      </div>
+
+      {post.replies?.length > 0 && (
+        <div className="reply-list">
+
+          {post.replies.map((reply) => (
+            <article className="forum-reply" key={reply.id}>
+
+              <div className="reply-heading">
+
+                <div>
+                  <p className="eyebrow">
+                    @{reply.author?.username || reply.username}
+                  </p>
+
+                  <h3>{reply.title}</h3>
+                </div>
+
+                <time>
+                  {new Date(reply.createdAt).toLocaleDateString()}
+                </time>
+
+              </div>
+
+              <p>
+                {reply.body}
+              </p>
+
+              {reply.attachment && (
+                <ForumAttachment
+                  attachment={reply.attachment}
+                />
+              )}
+
+            </article>
+          ))}
+
+        </div>
+      )}
+
+      {replyOpen && (
+        <form
+          className="reply-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onReply(post.id, event.currentTarget);
+            setReplyOpen(false);
+          }}
+        >
+
+          <p className="eyebrow">
+            reply as @{account.username}
+          </p>
+
+          <label className="field">
+            <span>Title</span>
+            <input
+              name="title"
+              type="text"
+              placeholder="Reply title"
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span>Body</span>
+            <textarea
+              name="body"
+              rows="5"
+              placeholder="Write your reply..."
+              required
+            />
+          </label>
+
+          <label className="field">
+            <span>Optional file</span>
+            <input
+              name="file"
+              type="file"
+              accept="image/*,.pdf,.txt,.doc,.docx"
+            />
+          </label>
+
+          <button className="submit-button">
+            publish reply
+          </button>
+
+        </form>
+      )}
+
+    </article>
+  );
+}
+function ForumAttachment({ attachment }) {
+  const isImage = attachment.mimeType?.startsWith("image/");
+
+  if (isImage) {
+    return (
+      <div className="forum-attachment image-attachment">
+        <img
+          src={attachment.url}
+          alt={attachment.filename}
+        />
+
+        <a
+          href={attachment.url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {attachment.filename}
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="forum-attachment">
+      <a
+        href={attachment.url}
+        target="_blank"
+        rel="noreferrer"
+      >
+        open {attachment.filename}
+      </a>
+    </div>
+  );
+}
+function Protocol({ account }) {
+    const wgijjn = "";
+    if (!account) return <RequireLogin />;
+    
+    return (
+        <section className = "content-page narrow">
+        <div className="articles">
+            <p className = "eyebrow"> learn, grow, and have fun! </p>
+            <h1>plant protocols</h1>
+            <p className="intro-copy small">
+                learn more about your favorite plants and the wide world of botany
+            </p>
+        </div>
+         </section>
+    );
+}
+function Articles() {
+    const title = "";
+
+    return (
+        <section className="content-page narrow">
+            <div className="articles">
+                <h1 className = "title"> ${title} </h1>
+            </div>
+            </section>
+    )
+}
+function App() {
+     {
+  const [todos, setTodos] = useState([])
+
+  useEffect(() => {
+    async function getTodos() {
+      const { data: todos } = await supabase.from('todos').select()
+
+      if (todos) {
+        setTodos(todos)
+      }
+    }
+
+    getTodos()
+  }, []);
+
+  return (
+    <ul>
+      {todos.map((todo) => (
+        <li key={todo.id}>{todo.name}</li>
+      ))}
+    </ul>
+  )
+}
+    const [account, setAccount] = useState(null),
+        [loading, setLoading] = useState(true),
+        loc = useLocation();
+    useEffect(() => {
+        api("/auth/me")
+            .then((d) => setAccount(d.account))
+            .catch(() => setAccount(null))
+            .finally(() => setLoading(false));
+    }, [loc.pathname]);
+    if (loading) return <div className="loading">plantist</div>;
+    return (
+        <Layout account={account} setAccount={setAccount}>
+            <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/home" element={<Home />} />
+                <Route path="/about" element={<About />} />
+                <Route
+                    path="/login"
+                    element={<Login setAccount={setAccount} />}
+                />
+                <Route
+                    path="/account"
+                    element={<Account account={account} />}
+                />
+                <Route path="/plants" element={<Plants account={account} />} />
+                <Route path="/panel" element={<PlantPanel account={account} />} />
+                <Route
+                    path="/protocol"
+                    element={<Protocol account={account} />}
+                />
+            </Routes>
+        </Layout>
+    );
+}
