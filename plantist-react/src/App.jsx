@@ -1,12 +1,3 @@
-const api = async (path, options = {}) => {
-    const r = await fetch(`/api${path}`, {
-        credentials: "include",
-        ...options,
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || "Something went wrong.");
-    return d;
-};
 const ageDays = (p) => {
     const platform = Math.max(
         0,
@@ -75,7 +66,6 @@ function Nav({ account, onLogout }) {
 function Layout({ account, setAccount, children }) {
     const nav = useNavigate();
     const logout = async () => {
-        await api("/auth/logout", { method: "POST" });
         setAccount(null);
         nav("/");
     };
@@ -226,7 +216,7 @@ function RequireLogin() {
         <section className="simple-page">
             <p className="eyebrow">your garden</p>
             <h1>log in first</h1>
-            <p>You need an account to view and create plant profiles.</p>
+            <p>You need an account to view and create plant profiles, protocols, and panel items.</p>
             <Link className="button-link" to="/login">
                 log in / create account
             </Link>
@@ -884,15 +874,6 @@ function App() {
 
     getTodos()
   }, []);
-
-  return (
-    <ul>
-      {todos.map((todo) => (
-        <li key={todo.id}>{todo.name}</li>
-      ))}
-    </ul>
-  )
-}
     const [account, setAccount] = useState(null),
         [loading, setLoading] = useState(true),
         loc = useLocation();
@@ -926,4 +907,12 @@ function App() {
             </Routes>
         </Layout>
     );
+    return (
+    <ul>
+      {todos.map((todo) => (
+        <li key={todo.id}>{todo.name}</li>
+      ))}
+    </ul>
+  )
+}
 }
