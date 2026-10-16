@@ -10,6 +10,7 @@
     --ink: #1e2922;
     --muted: #70796f;
     --line: #d9ddd2;
+    --gradient:  #7fb979;
 }
 
 body {
@@ -17,7 +18,9 @@ body {
     background: var(--cream);
     color: var(--ink);
     font-family: Georgia, 'Times New Roman', serif;
-    line-height: 1.6
+    line-height: 1.6;
+    background-image: radial-gradient(circle at 50% 25%,var(--cream), #7fb979);
+
 }
 
 button,
@@ -44,7 +47,7 @@ select {
 .brand {
     color: #f6f4eb;
     text-decoration: none;
-    font-size: 1.45rem
+    font-size: 1.45rem;
 }
 
 .nav-links {
