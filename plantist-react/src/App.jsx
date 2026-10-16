@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { supabase, uploadFile } from "./supabase";
 import "./style.css";
+import "./protocol.css";
 
 const ageDays = (plant) => {
   const start = plant.age_started_at || plant.ageStartedAt || plant.created_at || new Date().toISOString();
@@ -187,31 +188,126 @@ function Plants({ account }) {
 }
 
 function PlantPanel({ account }) {
-  const [posts, setPosts] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [showPostForm, setShowPostForm] = useState(false);
-  const loadPosts = async () => { if (!account) return; setLoading(true); setError("");
-    const { data, error } = await supabase.from("posts").select("*, author:accounts!posts_account_id_fkey(username, name), replies(*, author:accounts!replies_account_id_fkey(username, name))").order("created_at", { ascending: false });
-    if (error) { setError(messageOf(error)); setPosts([]); } else setPosts((data || []).map((post) => ({ ...post, createdAt: post.created_at, attachment: post.attachment_url ? { url: post.attachment_url, filename: post.attachment_name, mimeType: post.attachment_type } : null, replies: (post.replies || []).sort((a,b) => new Date(a.created_at) - new Date(b.created_at)).map((reply) => ({ ...reply, createdAt: reply.created_at, attachment: reply.attachment_url ? { url: reply.attachment_url, filename: reply.attachment_name, mimeType: reply.attachment_type } : null })) }))); }
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showPostForm, setShowPostForm] = useState(false);
+
+  const loadPosts = async () => {
+    if (!account) return;
+    setLoading(true);
+    setError("");
+    const { data, error: loadError } = await supabase
+      .from("posts")
+      .select("*, author:accounts!posts_account_id_fkey(username, name), replies(*, author:accounts!replies_account_id_fkey(username, name))")
+      .order("created_at", { ascending: false });
+    if (loadError) {
+      setError(messageOf(loadError));
+      setPosts([]);
+    } else {
+      setPosts((data || []).map((post) => ({
+        ...post,
+        createdAt: post.created_at,
+        attachment: post.attachment_url ? { url: post.attachment_url, filename: post.attachment_name, mimeType: post.attachment_type } : null,
+        replies: (post.replies || [])
+          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+          .map((reply) => ({
+            ...reply,
+            createdAt: reply.created_at,
+            attachment: reply.attachment_url ? { url: reply.attachment_url, filename: reply.attachment_name, mimeType: reply.attachment_type } : null,
+          })),
+      })));
+    }
     setLoading(false);
   };
-  useEffect(() => { if (!account) { setLoading(false); return; } loadPosts(); const channel = supabase.channel("plant-panel-updates").on("postgres_changes", { event: "*", schema: "public", table: "posts" }, loadPosts).on("postgres_changes", { event: "*", schema: "public", table: "replies" }, loadPosts).subscribe(); return () => { supabase.removeChannel(channel); }; }, [account?.id]);
+
+  useEffect(() => {
+    if (!account) { setLoading(false); return; }
+    loadPosts();
+    const channel = supabase.channel("plant-panel-updates")
+      .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, loadPosts)
+      .on("postgres_changes", { event: "*", schema: "public", table: "replies" }, loadPosts)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [account?.id]);
+
   if (!account) return <RequireLogin />;
-  const createPost = async (event) => { event.preventDefault(); setError(""); const formElement = event.currentTarget; const form = new FormData(formElement);
-    try { const file = form.get("file"); const attachment = file instanceof File && file.size ? await uploadFile(file, "forum", account.id) : null;
-      const { error } = await supabase.from("posts").insert({ account_id: account.id, title: String(form.get("title") || "").trim(), body: String(form.get("body") || "").trim(), attachment_url: attachment?.url || null, attachment_name: attachment?.filename || null, attachment_type: attachment?.mimeType || null });
-      if (error) throw error; formElement.reset(); setShowPostForm(false); await loadPosts();
-    } catch (error) { setError(messageOf(error)); }
+
+  const createPost = async (event) => {
+    event.preventDefault();
+    setError("");
+    const formElement = event.currentTarget;
+    const formData = new FormData(formElement);
+    try {
+      const file = formData.get("file");
+      const attachment = file instanceof File && file.size ? await uploadFile(file, "forum", account.id) : null;
+      const { error: insertError } = await supabase.from("posts").insert({
+        account_id: account.id,
+        title: String(formData.get("title") || "").trim(),
+        body: String(formData.get("body") || "").trim(),
+        attachment_url: attachment?.url || null,
+        attachment_name: attachment?.filename || null,
+        attachment_type: attachment?.mimeType || null,
+      });
+      if (insertError) throw insertError;
+      formElement.reset();
+      setShowPostForm(false);
+      await loadPosts();
+    } catch (createError) { setError(messageOf(createError)); }
   };
-  const createReply = async (postId, formElement) => { setError(""); const form = new FormData(formElement);
-    try { const file = form.get("file"); const attachment = file instanceof File && file.size ? await uploadFile(file, "forum", account.id) : null;
-      const { error } = await supabase.from("replies").insert({ post_id: postId, account_id: account.id, title: String(form.get("title") || "").trim(), body: String(form.get("body") || "").trim(), attachment_url: attachment?.url || null, attachment_name: attachment?.filename || null, attachment_type: attachment?.mimeType || null });
-      if (error) throw error; formElement.reset(); await loadPosts();
-    } catch (error) { setError(messageOf(error)); }
+
+  const createReply = async (postId, formElement) => {
+    setError("");
+    const formData = new FormData(formElement);
+    try {
+      const file = formData.get("file");
+      const attachment = file instanceof File && file.size ? await uploadFile(file, "forum", account.id) : null;
+      const { error: insertError } = await supabase.from("replies").insert({
+        post_id: postId,
+        account_id: account.id,
+        title: String(formData.get("title") || "").trim(),
+        body: String(formData.get("body") || "").trim(),
+        attachment_url: attachment?.url || null,
+        attachment_name: attachment?.filename || null,
+        attachment_type: attachment?.mimeType || null,
+      });
+      if (insertError) throw insertError;
+      formElement.reset();
+      await loadPosts();
+    } catch (createError) { setError(messageOf(createError)); }
   };
-  return <section className="content-page forum-page"><div className="page-heading"><div><p className="eyebrow">community garden</p><h1>plant panel</h1><p className="intro-copy small">Ask questions, share observations, and keep conversations about plants in one place.</p></div><button className="button-link" onClick={() => setShowPostForm(!showPostForm)}>{showPostForm ? "close" : "+ new post"}</button></div>
-    {showPostForm && <form className="forum-form" onSubmit={createPost}><p className="eyebrow">new discussion</p><label className="field"><span>Title</span><input name="title" type="text" placeholder="What would you like to discuss?" required /></label><label className="field"><span>Body</span><textarea name="body" rows="7" placeholder="Write your post..." required /></label><label className="field"><span>Optional file</span><input name="file" type="file" accept="image/*,.pdf,.txt,.doc,.docx" /></label><button className="submit-button">publish post</button></form>}
-    {error && <p className="error">{error}</p>}{loading ? <div className="empty-state">loading the panel...</div> : posts.length === 0 ? <div className="empty-state"><p>No discussions yet.</p><button className="button-link" onClick={() => setShowPostForm(true)}>start the first one</button></div> : <div className="forum-list">{posts.map((post) => <ForumPost key={post.id} post={post} account={account} onReply={createReply} />)}</div>}
-  </section>;
+
+  return (
+    <section className="content-page forum-page">
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">community garden</p>
+          <h1>plant panel</h1>
+          <p className="intro-copy small">Ask questions, share observations, and keep conversations about plants in one place.</p>
+        </div>
+        <button className="button-link" onClick={() => setShowPostForm(!showPostForm)}>{showPostForm ? "close" : "+ new post"}</button>
+      </div>
+      {showPostForm && (
+        <form className="forum-form" onSubmit={createPost}>
+          <p className="eyebrow">new discussion</p>
+          <label className="field"><span>Title</span><input name="title" type="text" placeholder="What would you like to discuss?" required /></label>
+          <label className="field"><span>Body</span><textarea name="body" rows="7" placeholder="Write your post..." required /></label>
+          <label className="field"><span>Optional file</span><input name="file" type="file" accept="image/*,.pdf,.txt,.doc,.docx" /></label>
+          <button className="submit-button">publish post</button>
+        </form>
+      )}
+      {error && <p className="error">{error}</p>}
+      {loading ? (
+        <div className="empty-state">loading the panel...</div>
+      ) : posts.length === 0 ? (
+        <div className="empty-state"><p>No discussions yet.</p><button className="button-link" onClick={() => setShowPostForm(true)}>start the first one</button></div>
+      ) : (
+        <div className="forum-list">{posts.map((post) => <ForumPost key={post.id} post={post} account={account} onReply={createReply} />)}</div>
+      )}
+    </section>
+  );
 }
+
 function ForumPost({ post, account, onReply }) {
   const [replyOpen, setReplyOpen] = useState(false);
   return <article className="forum-post"><header className="forum-post-header"><div><p className="eyebrow">@{post.author?.username || "grower"}</p><h2>{post.title}</h2></div><time>{new Date(post.createdAt).toLocaleDateString()}</time></header><div className="forum-post-body"><p>{post.body}</p>{post.attachment && <ForumAttachment attachment={post.attachment} />}</div>
@@ -224,12 +320,154 @@ function ForumAttachment({ attachment }) {
   if (attachment.mimeType?.startsWith("image/")) return <div className="forum-attachment image-attachment"><img src={attachment.url} alt={attachment.filename || "Attached image"} /><a href={attachment.url} target="_blank" rel="noreferrer">{attachment.filename || "open image"}</a></div>;
   return <div className="forum-attachment"><a href={attachment.url} target="_blank" rel="noreferrer">open {attachment.filename || "attachment"}</a></div>;
 }
+const PROTOCOL_STOP_WORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "into", "is", "it", "of", "on", "or", "the", "to", "with", "your", "you", "plant", "plants", "guide", "notes"
+]);
+
+function titleKeywords(title) {
+  return new Set(String(title || "").toLowerCase().normalize("NFKD")
+    .replace(/[^a-z0-9\s-]/g, " ").split(/[\s-]+/)
+    .filter((word) => word.length > 2 && !PROTOCOL_STOP_WORDS.has(word)));
+}
+
+function recommendationGroup(article, articles, ratings) {
+  const ownKeywords = titleKeywords(article.title);
+  let matchesHigh = false;
+  let matchesLow = false;
+  for (const other of articles) {
+    if (other.id === article.id) continue;
+    const rating = ratings[other.id];
+    if (rating !== 4 && rating !== 5 && rating !== 1 && rating !== 2) continue;
+    const otherKeywords = titleKeywords(other.title);
+    const overlaps = [...ownKeywords].some((word) => otherKeywords.has(word));
+    if (!overlaps) continue;
+    if (rating >= 4) matchesHigh = true;
+    if (rating <= 2) matchesLow = true;
+  }
+  // A title that overlaps both a high- and low-rated title remains neutral.
+  if (matchesHigh && matchesLow) return 1;
+  if (matchesHigh) return 0;
+  if (matchesLow) return 2;
+  return 1;
+}
+
+const emptyArticleForm = (account) => ({
+  title: "", author: account?.name || account?.username || "", published_on: new Date().toISOString().slice(0, 10),
+  source_url: "", summary: "", sections: [{ heading: "Overview", body: "" }]
+});
+
 function Protocol({ account }) {
-  const [level, setLevel] = useState(1); const [notes, setNotes] = useState(""); const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false);
-  useEffect(() => { if (!account) return; supabase.from("plant_protocols").select("level, notes").eq("account_id", account.id).maybeSingle().then(({ data, error }) => { if (error) setMsg(messageOf(error)); if (data) { setLevel(data.level || 1); setNotes(data.notes || ""); } }); }, [account?.id]);
-  if (!account) return <RequireLogin />;
-  const save = async (event) => { event.preventDefault(); setBusy(true); setMsg(""); const { error } = await supabase.from("plant_protocols").upsert({ account_id: account.id, level, notes, updated_at: new Date().toISOString() }); setBusy(false); setMsg(error ? messageOf(error) : "Protocol saved."); };
-  return <section className="content-page narrow"><div className="articles"><p className="eyebrow">learn, grow, and have fun!</p><h1>plant protocols</h1><p className="intro-copy small">learn more about your favorite plants and the wide world of botany</p></div><form className="plant-form" onSubmit={save}><label className="field"><span>Protocol level</span><select value={level} onChange={(event) => setLevel(Number(event.target.value))}>{[1,2,3,4,5,6,7].map((n) => <option key={n} value={n}>Level {n}</option>)}</select></label><label className="field"><span>Notes</span><textarea rows="5" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Add your plant care notes..." /></label><button className="submit-button" disabled={busy}>{busy ? "saving..." : "save protocol"}</button>{msg && <p className="message">{msg}</p>}</form></section>;
+  const [articles, setArticles] = useState([]);
+  const [ratings, setRatings] = useState({});
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState("recommended");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(() => emptyArticleForm(account));
+  const [busy, setBusy] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+
+  const loadArticles = async () => {
+    setLoading(true);
+    setError("");
+    const { data, error: articleError } = await supabase.from("protocol_articles").select("*").order("published_on", { ascending: false }).order("created_at", { ascending: false });
+    if (articleError) {
+      setError(`${messageOf(articleError)} If this is a new Supabase project, run the updated supabase/schema.sql file first.`);
+      setArticles([]);
+      setLoading(false);
+      return;
+    }
+    setArticles(data || []);
+    if (account) {
+      const { data: ratingRows, error: ratingError } = await supabase.from("protocol_article_ratings").select("article_id, rating").eq("account_id", account.id);
+      if (ratingError) setError(messageOf(ratingError));
+      else setRatings(Object.fromEntries((ratingRows || []).map((row) => [row.article_id, row.rating])));
+    } else setRatings({});
+    setLoading(false);
+  };
+
+  useEffect(() => { loadArticles(); }, [account?.id]);
+
+  const updateForm = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const openNewForm = () => { setEditingId(null); setForm(emptyArticleForm(account)); setShowForm(true); };
+  const openEditForm = (article) => {
+    setEditingId(article.id);
+    setForm({ title: article.title || "", author: article.author || "", published_on: article.published_on || "", source_url: article.source_url || "", summary: article.summary || "", sections: Array.isArray(article.sections) && article.sections.length ? article.sections : [{ heading: "Overview", body: "" }] });
+    setShowForm(true);
+    window.scrollTo(0, 0);
+  };
+  const saveArticle = async (event) => {
+    event.preventDefault();
+    if (!account) { setError("Sign in to add or edit articles."); return; }
+    setBusy(true); setError("");
+    const payload = {
+      title: form.title.trim(), author: form.author.trim(), published_on: form.published_on || new Date().toISOString().slice(0, 10),
+      source_url: form.source_url.trim() || null, summary: form.summary.trim(), sections: form.sections.map((section) => ({ heading: section.heading.trim(), body: section.body.trim() })).filter((section) => section.heading || section.body)
+    };
+    try {
+      if (!payload.title) throw new Error("Add an article title.");
+      if (payload.source_url && !/^https?:\/\//i.test(payload.source_url)) throw new Error("The source link must start with http:// or https://.");
+      if (payload.sections.length === 0) throw new Error("Add at least one section.");
+      let result;
+      if (editingId) result = await supabase.from("protocol_articles").update(payload).eq("id", editingId).eq("created_by", account.id);
+      else result = await supabase.from("protocol_articles").insert({ ...payload, created_by: account.id });
+      if (result.error) throw result.error;
+      setShowForm(false); setEditingId(null); setForm(emptyArticleForm(account)); await loadArticles();
+    } catch (saveError) { setError(messageOf(saveError)); }
+    finally { setBusy(false); }
+  };
+  const deleteArticle = async (article) => {
+    if (!window.confirm(`Delete “${article.title}”? This cannot be undone.`)) return;
+    const { error: deleteError } = await supabase.from("protocol_articles").delete().eq("id", article.id).eq("created_by", account.id);
+    if (deleteError) setError(messageOf(deleteError)); else { setArticles((current) => current.filter((item) => item.id !== article.id)); setRatings((current) => { const next = { ...current }; delete next[article.id]; return next; }); }
+  };
+  const rateArticle = async (articleId, rating) => {
+    if (!account) { setError("Sign in to save personal ratings."); return; }
+    setError("");
+    const { error: ratingError } = await supabase.from("protocol_article_ratings").upsert({ article_id: articleId, account_id: account.id, rating, updated_at: new Date().toISOString() }, { onConflict: "article_id,account_id" });
+    if (ratingError) setError(messageOf(ratingError)); else setRatings((current) => ({ ...current, [articleId]: rating }));
+  };
+
+  const query = search.trim().toLowerCase();
+  const visibleArticles = articles.filter((article) => {
+    const sectionText = (article.sections || []).map((section) => `${section.heading || ""} ${section.body || ""}`).join(" ");
+    return !query || `${article.title} ${article.author} ${article.summary} ${sectionText}`.toLowerCase().includes(query);
+  }).sort((a, b) => {
+    if (sort === "newest") return String(b.published_on || b.created_at).localeCompare(String(a.published_on || a.created_at));
+    if (sort === "oldest") return String(a.published_on || a.created_at).localeCompare(String(b.published_on || b.created_at));
+    if (sort === "title") return a.title.localeCompare(b.title);
+    const groupDiff = recommendationGroup(a, articles, ratings) - recommendationGroup(b, articles, ratings);
+    if (groupDiff) return groupDiff;
+    return String(b.published_on || b.created_at).localeCompare(String(a.published_on || a.created_at));
+  });
+
+  return <section className="content-page protocol-page">
+    <div className="page-heading protocol-heading"><div><p className="eyebrow">learn, grow, and have fun!</p><h1>plant protocols</h1><p className="intro-copy small">A growing library of plant-care articles, research, and practical notes.</p></div>{account && <button className="button-link" onClick={() => showForm ? setShowForm(false) : openNewForm()}>{showForm ? "close" : "+ new article"}</button>}</div>
+    <div className="protocol-tools"><label className="field protocol-search"><span>Search articles</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search titles, authors, or article text..." /></label><label className="field protocol-sort"><span>Sort by</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="recommended">Recommended</option><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A–Z</option></select></label></div>
+    <p className="protocol-explainer">Recommended sorting uses your private ratings: articles related by title keywords to 4–5 star articles appear first, and those related to 1–2 star articles appear last. If an article matches both groups, it stays neutral. Other visitors cannot see your ratings.</p>
+    {error && <p className="error">{error}</p>}
+    {showForm && account && <form className="plant-form protocol-form" onSubmit={saveArticle}>
+      <p className="eyebrow">{editingId ? "edit article" : "article template"}</p><h2>{editingId ? "Update article" : "Add a plant protocol"}</h2>
+      <label className="field"><span>Title</span><input value={form.title} onChange={(event) => updateForm("title", event.target.value)} required maxLength={240} placeholder="Article title" /></label>
+      <div className="form-columns"><label className="field"><span>Author</span><input value={form.author} onChange={(event) => updateForm("author", event.target.value)} placeholder="Author or organization" /></label><label className="field"><span>Publication date</span><input type="date" value={form.published_on} onChange={(event) => updateForm("published_on", event.target.value)} /></label></div>
+      <label className="field"><span>Source link</span><input type="url" value={form.source_url} onChange={(event) => updateForm("source_url", event.target.value)} placeholder="https://..." /></label>
+      <label className="field"><span>Summary / abstract</span><textarea rows="3" value={form.summary} onChange={(event) => updateForm("summary", event.target.value)} placeholder="A short description to help readers decide whether to open it." /></label>
+      <div className="protocol-section-editor"><div className="protocol-section-title"><h3>Article sections</h3><button className="reply-button" type="button" onClick={() => updateForm("sections", [...form.sections, { heading: "", body: "" }])}>+ add header</button></div>
+        {form.sections.map((section, index) => <div className="protocol-section-field" key={index}><div className="protocol-section-title"><span>Section {index + 1}</span>{form.sections.length > 1 && <button className="reply-button" type="button" onClick={() => updateForm("sections", form.sections.filter((_, sectionIndex) => sectionIndex !== index))}>remove</button>}</div><label className="field"><span>Header</span><input value={section.heading} onChange={(event) => updateForm("sections", form.sections.map((item, sectionIndex) => sectionIndex === index ? { ...item, heading: event.target.value } : item))} placeholder="e.g. Light requirements" /></label><label className="field"><span>Section text</span><textarea rows="5" value={section.body} onChange={(event) => updateForm("sections", form.sections.map((item, sectionIndex) => sectionIndex === index ? { ...item, body: event.target.value } : item))} placeholder="Write the section content here..." /></label></div>)}
+      </div><div className="protocol-form-actions"><button className="submit-button" disabled={busy}>{busy ? "saving..." : editingId ? "save changes" : "publish article"}</button><button className="reply-button" type="button" onClick={() => { setShowForm(false); setEditingId(null); }}>cancel</button></div>
+    </form>}
+    {loading ? <div className="empty-state">loading articles...</div> : visibleArticles.length === 0 ? <div className="empty-state">{query ? "No articles match that search." : "No articles have been added yet."}{!account && !query && <p>Sign in to add the first article to the library.</p>}</div> : <div className="protocol-list">{visibleArticles.map((article) => <article className="protocol-article" key={article.id}>
+      <div className="protocol-article-meta"><span>{article.author || "Author not listed"}</span><span>{article.published_on ? new Date(`${article.published_on}T12:00:00`).toLocaleDateString() : "Date not listed"}</span></div>
+      <h2>{article.title}</h2>{article.summary && <p className="protocol-summary">{article.summary}</p>}
+      {article.source_url && <p className="protocol-source"><a href={article.source_url} target="_blank" rel="noreferrer">view source ↗</a></p>}
+      <div className="protocol-rating"><span>Your rating</span><div className="protocol-stars" role="group" aria-label={`Rate ${article.title}`}>{[1,2,3,4,5].map((star) => <button key={star} type="button" className={star <= (ratings[article.id] || 0) ? "star active" : "star"} aria-label={`${star} star${star === 1 ? "" : "s"}`} title={`${star} star${star === 1 ? "" : "s"}`} onClick={() => rateArticle(article.id, star)} disabled={!account}>{star <= (ratings[article.id] || 0) ? "★" : "☆"}</button>)}</div>{!account && <span className="protocol-sign-in-note"><Link to="/login">sign in</Link> to rate</span>}</div>
+      <button className="protocol-read-button" onClick={() => setExpandedId(expandedId === article.id ? null : article.id)}>{expandedId === article.id ? "hide article −" : "read article +"}</button>
+      {expandedId === article.id && <div className="protocol-article-body">{(article.sections || []).map((section, index) => <section key={`${article.id}-${index}`}><h3>{section.heading}</h3><p>{section.body}</p></section>)}</div>}
+      {account?.id === article.created_by && <div className="protocol-owner-actions"><button className="reply-button" onClick={() => openEditForm(article)}>edit article</button><button className="reply-button" onClick={() => deleteArticle(article)}>delete article</button></div>}
+    </article>)}</div>}
+  </section>;
 }
 
 function App() {
