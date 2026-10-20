@@ -145,10 +145,10 @@ function Home() {
                 </Link>
             </section>
             <section className="gallery">
-                <div className="plant-card">image placeholder</div>
-                <div className="plant-card tall">image placeholder</div>
-                <div className="plant-card">image placeholder</div>
-                <div className="plant-card wide">image placeholder</div>
+                <div className="plant-card"> <img src = "/img1.jpg" alt="Plant 1"/> </div>
+                <div className="plant-card tall"> <img src = "/img2.jpg" alt="Plant 2" /> </div>
+                <div className="plant-card"> <img src = "/img3.jpg" alt="Plant 3" /> </div>
+                <div className="plant-card wide"> <img src = "/img4.jpg" alt="Plant 4" /> </div>
             </section>
             <footer className="footer">insert contacts here later</footer>
         </>
