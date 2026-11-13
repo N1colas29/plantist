@@ -150,7 +150,7 @@ function Home() {
                 <div className="plant-card"> <img src = "/img3.jpg" alt="Plant 3" /> </div>
                 <div className="plant-card wide"> <img src = "/img4.jpg" alt="Plant 4" /> </div>
             </section>
-            <footer className="footer">insert contacts here later</footer>
+            <footer className="footer">Nicolas Kaschny | All Rights Reserved</footer>
         </>
     );
 }
@@ -159,7 +159,15 @@ function About() {
         <section className="simple-page">
             <p className="eyebrow">about</p>
             <h1>plantist</h1>
-            <p>About content can live here later.</p>
+            <p>
+                Plantist is an independent project created by Nicolas Kaschny, an avid plant enthusiast and novice high-school developer. 
+
+                Plantist will be updated monthly with new features and integration support. 
+
+                This project is a part of the Local Portal. 
+        
+                Please reach out if you have any questions, comments, or concerns.
+            </p>
         </section>
     );
 }
@@ -335,12 +343,12 @@ function RequireLogin() {
 }
 
 function Account({ account }) {
-    const [counts, setCounts] = useState({ plants: 0, posts: 0, level: 1 });
+    const [counts, setCounts] = useState({ plants: 0, posts: 0, articles: 0 });
     useEffect(() => {
         if (!account) return;
         let alive = true;
         (async () => {
-            const [plants, posts, protocol] = await Promise.all([
+            const [plants, posts, articles] = await Promise.all([
                 supabase
                     .from("plants")
                     .select("id", { count: "exact", head: true })
@@ -350,16 +358,14 @@ function Account({ account }) {
                     .select("id", { count: "exact", head: true })
                     .eq("account_id", account.id),
                 supabase
-                    .from("plant_protocols")
-                    .select("level")
-                    .eq("account_id", account.id)
-                    .maybeSingle(),
+                    .from("protocol_articles")
+                    .select("id", { count: "exact", head: true }),
             ]);
             if (alive)
                 setCounts({
                     plants: plants.count || 0,
                     posts: posts.count || 0,
-                    level: protocol.data?.level || 1,
+                    articles: articles.count || 0,
                 });
         })();
         return () => {
@@ -382,7 +388,7 @@ function Account({ account }) {
                 </div>
                 <div className="data-card">
                     <span>Plant Protocols</span>
-                    <strong>Level {counts.level}</strong>
+                    <strong>{counts.articles}</strong>
                     <Link to="/protocol">view protocol →</Link>
                 </div>
                 <div className="data-card">
@@ -821,6 +827,48 @@ function PlantPanel({ account }) {
         }
     };
 
+    const deletePost = async (post) => {
+        if (!window.confirm("Delete this post and all of its replies?")) return;
+        setError("");
+        const { error: deleteError } = await supabase
+            .from("posts")
+            .delete()
+            .eq("id", post.id)
+            .eq("account_id", account.id);
+        if (deleteError) {
+            setError(messageOf(deleteError));
+            return;
+        }
+        setPosts((current) => current.filter((item) => item.id !== post.id));
+    };
+
+    const deleteReply = async (postId, reply) => {
+        if (!window.confirm("Delete this reply?")) return;
+        setError("");
+        const { error: deleteError } = await supabase
+            .from("replies")
+            .delete()
+            .eq("id", reply.id)
+            .eq("post_id", postId)
+            .eq("account_id", account.id);
+        if (deleteError) {
+            setError(messageOf(deleteError));
+            return;
+        }
+        setPosts((current) =>
+            current.map((post) =>
+                post.id === postId
+                    ? {
+                          ...post,
+                          replies: post.replies.filter(
+                              (item) => item.id !== reply.id,
+                          ),
+                      }
+                    : post,
+            ),
+        );
+    };
+
     const createReply = async (postId, formElement) => {
         setError("");
         const formData = new FormData(formElement);
@@ -920,6 +968,8 @@ function PlantPanel({ account }) {
                             post={post}
                             account={account}
                             onReply={createReply}
+                            onDeletePost={deletePost}
+                            onDeleteReply={deleteReply}
                         />
                     ))}
                 </div>
@@ -928,7 +978,7 @@ function PlantPanel({ account }) {
     );
 }
 
-function ForumPost({ post, account, onReply }) {
+function ForumPost({ post, account, onReply, onDeletePost, onDeleteReply }) {
     const [replyOpen, setReplyOpen] = useState(false);
     return (
         <article className="forum-post">
@@ -958,6 +1008,14 @@ function ForumPost({ post, account, onReply }) {
                 >
                     {replyOpen ? "close" : "reply"}
                 </button>
+                {account.id === post.account_id && (
+                    <button
+                        className="reply-button"
+                        onClick={() => onDeletePost(post)}
+                    >
+                        delete post
+                    </button>
+                )}
             </div>
             {post.replies?.length > 0 && (
                 <div className="reply-list">
@@ -981,6 +1039,14 @@ function ForumPost({ post, account, onReply }) {
                                 <ForumAttachment
                                     attachment={reply.attachment}
                                 />
+                            )}
+                            {account.id === reply.account_id && (
+                                <button
+                                    className="reply-button"
+                                    onClick={() => onDeleteReply(post.id, reply)}
+                                >
+                                    delete reply
+                                </button>
                             )}
                         </article>
                     ))}
@@ -1095,22 +1161,38 @@ function titleKeywords(title) {
 }
 
 function recommendationGroup(article, articles, ratings) {
-    const ownKeywords = titleKeywords(article.title);
-    let matchesHigh = false;
-    let matchesLow = false;
+    const highKeywords = new Set();
+    const lowKeywords = new Set();
+
     for (const other of articles) {
         if (other.id === article.id) continue;
-        const rating = ratings[other.id];
-        if (rating !== 4 && rating !== 5 && rating !== 1 && rating !== 2)
-            continue;
-        const otherKeywords = titleKeywords(other.title);
-        const overlaps = [...ownKeywords].some((word) =>
-            otherKeywords.has(word),
-        );
-        if (!overlaps) continue;
-        if (rating >= 4) matchesHigh = true;
-        if (rating <= 2) matchesLow = true;
+        const rating = Number(ratings[other.id] || 0);
+        if (rating < 1 || rating > 5) continue;
+
+        const destination =
+            rating >= 4 ? highKeywords : rating <= 2 ? lowKeywords : null;
+        if (!destination) continue;
+
+        for (const keyword of titleKeywords(other.title)) {
+            destination.add(keyword);
+        }
     }
+
+    // Keywords present in both highly and poorly rated titles are neutral.
+    const conflictedKeywords = new Set(
+        [...highKeywords].filter((keyword) => lowKeywords.has(keyword)),
+    );
+    const ownKeywords = titleKeywords(article.title);
+    const matchesHigh = [...ownKeywords].some(
+        (keyword) =>
+            highKeywords.has(keyword) && !conflictedKeywords.has(keyword),
+    );
+    const matchesLow = [...ownKeywords].some(
+        (keyword) =>
+            lowKeywords.has(keyword) && !conflictedKeywords.has(keyword),
+    );
+
+    // Conflicting positive and negative signals leave the article neutral.
     if (matchesHigh && matchesLow) return 1;
     if (matchesHigh) return 0;
     if (matchesLow) return 2;
@@ -1298,39 +1380,52 @@ function Protocol({ account }) {
     };
 
     const query = search.trim().toLowerCase();
-    const visibleArticles = articles
-        .filter((article) => {
-            const sectionText = (article.sections || [])
-                .map(
-                    (section) =>
-                        `${section.heading || ""} ${section.body || ""}`,
-                )
-                .join(" ");
-            return (
-                !query ||
-                `${article.title} ${article.author} ${article.summary} ${sectionText}`
-                    .toLowerCase()
-                    .includes(query)
-            );
-        })
-        .sort((a, b) => {
-            if (sort === "newest")
-                return String(b.published_on || b.created_at).localeCompare(
-                    String(a.published_on || a.created_at),
-                );
-            if (sort === "oldest")
-                return String(a.published_on || a.created_at).localeCompare(
-                    String(b.published_on || b.created_at),
-                );
-            if (sort === "title") return a.title.localeCompare(b.title);
-            const groupDiff =
-                recommendationGroup(a, articles, ratings) -
-                recommendationGroup(b, articles, ratings);
-            if (groupDiff) return groupDiff;
+
+const visibleArticles = articles
+    .filter((article) => {
+        const sectionText = (article.sections || [])
+            .map(
+                (section) =>
+                    `${section.heading || ""} ${section.body || ""}`,
+            )
+            .join(" ");
+
+        return (
+            !query ||
+            `${article.title} ${article.author} ${article.summary} ${sectionText}`
+                .toLowerCase()
+                .includes(query)
+        );
+    })
+    .sort((a, b) => {
+        if (sort === "newest") {
             return String(b.published_on || b.created_at).localeCompare(
                 String(a.published_on || a.created_at),
             );
-        });
+        }
+
+        if (sort === "oldest") {
+            return String(a.published_on || a.created_at).localeCompare(
+                String(b.published_on || b.created_at),
+            );
+        }
+
+        if (sort === "title") {
+            return (a.title || "").localeCompare(b.title || "");
+        }
+
+        const ratingA = Number(ratings[a.id] || 0);
+        const ratingB = Number(ratings[b.id] || 0);
+
+        if (ratingA !== ratingB) {
+            return ratingB - ratingA;
+        }
+
+        const dateA = a.published_on || a.created_at || "";
+        const dateB = b.published_on || b.created_at || "";
+
+        return String(dateB).localeCompare(String(dateA));
+    });
 
     return (
         <section className="content-page protocol-page">

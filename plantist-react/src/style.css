@@ -15,12 +15,12 @@
 
 body {
     margin: 0;
-    background: var(--cream);
+    background-color: var(--cream);
+    background-image: radial-gradient(circle at 50% 25%, var(--cream), var(--gradient));
+    background-attachment: fixed; 
     color: var(--ink);
     font-family: Georgia, 'Times New Roman', serif;
     line-height: 1.6;
-    background-image: radial-gradient(circle at 50% 25%,var(--cream), #7fb979);
-
 }
 
 button,
